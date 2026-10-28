@@ -1,0 +1,898 @@
+<!doctype html>
+<html lang="hr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kalibar H-28</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Interaktivni 3D mehanički sat: kotačić miša okreće i rastavlja sat, a uz svaki dio stoji objašnjenje kako radi.">
+<meta property="og:title" content="Kalibar H-28">
+<meta property="og:description" content="Okreni kotačić miša i rastavi mehanički sat u 3D-u, sloj po sloj.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23263329'/%3E%3Ccircle cx='32' cy='32' r='19' fill='none' stroke='%23d8b46a' stroke-width='5' stroke-dasharray='4 3.2'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%232f56d6'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Michroma&display=swap">
+<style>
+/* Layout: full-screen studio render; the watch sits right, one chapter of text at a time on the left, a horizontal chapter rail along the bottom. Single committed dark look: the green baize of a watchmaker's bench mat, brass and ivory like a watch catalogue. */
+:root {
+  color-scheme: dark;
+  --studio-hi: #3d5246;
+  --studio-mid: #263329;
+  --studio-lo: #121a15;
+  --ink: #f1ede1;
+  --ink-soft: #b9bfae;
+  --brass: #e2be78;
+  --blued: #e2be78;
+  --blued-ring: rgba(226, 190, 120, 0.25);
+  --chip: #f1ede1;
+  --chip-ink: #17201a;
+  --rule: rgba(241, 237, 225, 0.2);
+  --font-display: "Michroma", "Eurostile", "Arial Black", sans-serif;
+  --font-body: "Michroma", "Eurostile", Arial, sans-serif;
+  --font-mono: "Michroma", "Eurostile", Arial, sans-serif;
+  --gutter-l: max(16px, env(safe-area-inset-left, 0px));
+  --gutter-r: max(16px, env(safe-area-inset-right, 0px));
+}
+html, body { height: 100%; }
+body {
+  background: radial-gradient(110% 85% at 64% 42%, var(--studio-hi) 0%, var(--studio-mid) 48%, var(--studio-lo) 100%);
+  background-color: var(--studio-lo);
+  color: var(--ink);
+  font-family: var(--font-body);
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+}
+#stage { position: fixed; inset: 0; touch-action: none; cursor: grab; }
+#stage.dragging { cursor: grabbing; }
+#stage canvas { display: block; width: 100%; height: 100%; }
+
+.chrome {
+  position: fixed; inset: 0; pointer-events: none;
+  padding-left: max(28px, env(safe-area-inset-left, 0px));
+  padding-right: max(28px, env(safe-area-inset-right, 0px));
+}
+.top {
+  position: absolute; left: 0; right: 0;
+  top: calc(env(safe-area-inset-top, 0px) + 22px);
+  padding-left: inherit; padding-right: inherit;
+  display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
+}
+.mark { display: flex; align-items: baseline; gap: 12px; font-family: var(--font-display); font-weight: 400; font-size: 16px; letter-spacing: 0.04em; }
+.mark span { font-family: var(--font-mono); font-weight: 400; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+.now { text-align: right; font-family: var(--font-mono); }
+.now b { display: block; font-weight: 400; font-size: 14px; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
+.now small { font-size: 8.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+
+.panel {
+  position: absolute;
+  left: max(28px, env(safe-area-inset-left, 0px));
+  top: 50%; transform: translateY(-52%);
+  width: min(430px, 36vw);
+  min-height: 330px;
+}
+.ch {
+  position: absolute; left: 0; top: 0; width: 100%;
+  opacity: 0; transform: translateX(48px);
+  transition: opacity 0.45s ease, transform 0.6s cubic-bezier(0.2, 0.7, 0.1, 1);
+  pointer-events: none;
+}
+.ch.before { transform: translateX(-48px); }
+.ch.on { opacity: 1; transform: none; pointer-events: auto; }
+.eyebrow {
+  margin: 0 0 18px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--brass);
+}
+.eyebrow .idx { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.title {
+  margin: 0 0 18px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(24px, 2.7vw, 38px);
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.body { margin: 0 0 26px; max-width: 46ch; font-size: 13px; line-height: 1.85; color: var(--ink-soft); }
+.spec { margin: 0; display: flex; flex-wrap: wrap; gap: 14px 30px; padding-top: 16px; border-top: 1px solid var(--rule); }
+.spec div { min-width: 0; }
+.spec dt { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 4px; }
+.spec dd { margin: 0; font-family: var(--font-mono); font-weight: 400; font-size: 13px; font-variant-numeric: tabular-nums; }
+
+.rail {
+  position: absolute; left: 0; right: 0;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
+  padding-left: inherit; padding-right: inherit;
+  pointer-events: auto;
+}
+.rail-head { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 12px; font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-soft); }
+.track { position: relative; height: 2px; background: var(--rule); }
+.fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--blued); }
+.ticks { list-style: none; margin: 0; padding: 0; position: absolute; inset: 0; }
+.ticks li { position: absolute; top: 0; transform: translateX(-50%); }
+.ticks li:first-child { transform: none; }
+.ticks li:last-child { transform: translateX(-100%); }
+.ticks button {
+  appearance: none; border: 0; background: none; padding: 10px 2px 0; margin-top: -9px;
+  font: 400 9.5px/1 var(--font-mono); letter-spacing: 0.02em; color: var(--ink-soft);
+  cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 9px; white-space: nowrap;
+}
+.ticks li:first-child button { align-items: flex-start; }
+.ticks li:last-child button { align-items: flex-end; }
+.ticks button::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--studio-mid); border: 1.5px solid var(--ink-soft); }
+.ticks button.done::before { background: var(--blued); border-color: var(--blued); }
+.ticks button.on { color: var(--ink); }
+.ticks button.on::before { background: var(--blued); border-color: var(--blued); box-shadow: 0 0 0 4px var(--blued-ring); }
+.ticks button:hover { color: var(--ink); }
+.ticks button:focus-visible { outline: 2px solid var(--blued); outline-offset: 3px; border-radius: 3px; }
+
+.tag {
+  position: absolute; left: 0; top: 0; pointer-events: none; opacity: 0;
+  display: flex; align-items: center; gap: 0;
+  font: 400 9.5px/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink);
+  will-change: transform, opacity;
+}
+.tag i { width: 9px; height: 9px; border-radius: 50%; background: var(--blued); box-shadow: 0 0 0 3px var(--blued-ring); flex: none; }
+.tag em { font-style: normal; width: 46px; height: 1px; background: var(--brass); flex: none; }
+.tag span { padding: 6px 9px; background: var(--chip); color: var(--chip-ink); }
+
+.loader {
+  position: fixed; inset: 0; display: grid; place-items: center; z-index: 5;
+  background: inherit; transition: opacity 0.6s ease;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft);
+}
+.loader div { display: grid; gap: 14px; justify-items: center; text-align: center; padding-inline: 24px; }
+.loader .bar { width: 140px; height: 2px; background: var(--rule); position: relative; overflow: hidden; }
+.loader .bar::after { content: ""; position: absolute; inset: 0; width: 40%; background: var(--blued); animation: slide 1.1s ease-in-out infinite; }
+.loader.gone { opacity: 0; pointer-events: none; }
+.loader.error .bar { display: none; }
+.loader.error p { text-transform: none; letter-spacing: 0; font-size: 12px; line-height: 1.7; max-width: 42ch; color: var(--ink); }
+@keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (max-width: 860px) {
+  .chrome { padding-left: var(--gutter-l); padding-right: var(--gutter-r); }
+  .top { top: calc(env(safe-area-inset-top, 0px) + 14px); }
+  .panel {
+    left: var(--gutter-l); right: var(--gutter-r); width: auto;
+    top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 74px); transform: none;
+    min-height: 0; height: 40vh; max-height: 300px;
+  }
+  .ch { top: auto; bottom: 0; }
+  .eyebrow { margin-bottom: 10px; }
+  .title { font-size: clamp(21px, 6vw, 27px); margin-bottom: 10px; }
+  .body { font-size: 11.5px; line-height: 1.75; margin-bottom: 14px; }
+  .spec { gap: 10px 22px; padding-top: 10px; }
+  .spec dd { font-size: 11.5px; }
+  .ticks button span { display: none; }
+  .ticks button { padding-top: 10px; }
+  .rail { bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); }
+  .hint-desk { display: none; }
+}
+@media (min-width: 861px) { .hint-touch { display: none; } }
+@media (max-height: 640px) and (min-width: 861px) { .body { font-size: 12px; margin-bottom: 16px; } .title { font-size: 27px; } }
+@media (prefers-reduced-motion: reduce) {
+  .ch, .ch.before { transform: none; transition: opacity 0.2s linear; }
+  .loader .bar::after { animation: none; width: 100%; }
+}
+</style>
+</head>
+<body>
+
+<div id="stage" role="img" aria-label="3D model mehaničkog sata koji se okreće i rastavlja na dijelove"></div>
+
+<div class="loader" id="loader" role="status" aria-live="polite">
+  <div><div class="bar"></div><p id="loader-msg">Sklapam mehanizam</p></div>
+</div>
+
+<div class="chrome">
+  <header class="top">
+    <div class="mark">H-28 <span>Mehanički kalibar</span></div>
+    <div class="now"><b id="clock">--:--:--</b><small>Vrijeme na satu</small></div>
+  </header>
+
+  <main class="panel" id="panel" aria-live="polite">
+    <section class="ch on" data-i="0">
+      <p class="eyebrow"><span class="idx">01 / 09</span> Kalibar H-28</p>
+      <h1 class="title">Unutar mehaničkog sata</h1>
+      <p class="body">Više od stotinu dijelova, bez baterije i bez čipa. Sat pokazuje tvoje stvarno vrijeme, a pokreće ga samo napeta čelična opruga. Okreni kotačić miša i sat će se okretati i rastavljati pred tobom.</p>
+      <dl class="spec"><div><dt>Promjer</dt><dd>40 mm</dd></div><div><dt>Frekvencija</dt><dd>4 Hz</dd></div><div><dt>Rezerva hoda</dt><dd>42 h</dd></div></dl>
+    </section>
+    <section class="ch" data-i="1">
+      <p class="eyebrow"><span class="idx">02 / 09</span> Brojčanik i kazaljke</p>
+      <h2 class="title">Sekunda u osam koraka</h2>
+      <p class="body">Sekundna kazaljka ne klizi glatko. Skoči osam puta u sekundi, u istom ritmu u kojem kotva oslobađa zupčanike. To su otkucaji koje čuješ kad prisloniš sat uz uho.</p>
+      <dl class="spec"><div><dt>Otkucaji</dt><dd>8 u sekundi</dd></div><div><dt>Na sat</dt><dd>28 800</dd></div></dl>
+    </section>
+    <section class="ch" data-i="2">
+      <p class="eyebrow"><span class="idx">03 / 09</span> Kućište i krunica</p>
+      <h2 class="title">Jedina veza s mehanizmom</h2>
+      <p class="body">Okretanjem krunice navijaš glavnu oprugu. Kad je izvučeš, ista osovina pomiče kazaljke. Čelično kućište štiti mehanizam od prašine i vlage, a brtva u krunici drži vodu vani.</p>
+      <dl class="spec"><div><dt>Materijal</dt><dd>Čelik 316L</dd></div><div><dt>Vodootpornost</dt><dd>5 bar</dd></div></dl>
+    </section>
+    <section class="ch" data-i="3">
+      <p class="eyebrow"><span class="idx">04 / 09</span> Pogled kroz safirno staklo</p>
+      <h2 class="title">Mehanizam na dlanu</h2>
+      <p class="body">Straga se vide mostovi, ploče koje drže osovine zupčanika na mjestu. Ukrašeni su ženevskim prugama. Vijci su plavo kaljeni: čelik zagrijan na oko 290 °C poprimi tu boju i bolje odolijeva hrđi.</p>
+      <dl class="spec"><div><dt>Ukras mostova</dt><dd>Ženevske pruge</dd></div><div><dt>Vijci</dt><dd>Plavo kaljeni</dd></div></dl>
+    </section>
+    <section class="ch" data-i="4">
+      <p class="eyebrow"><span class="idx">05 / 09</span> Bačva i glavna opruga</p>
+      <h2 class="title">Spremnik energije</h2>
+      <p class="body">U bačvi je namotana čelična traka duga oko pola metra. Navijena se polako odmata i okreće zupčanik na rubu bačve. Jedno potpuno navijanje daje satu energiju za oko 42 sata rada.</p>
+      <dl class="spec"><div><dt>Rezerva hoda</dt><dd>42 h</dd></div><div><dt>Zaporni kotač</dt><dd>40 zubaca</dd></div></dl>
+    </section>
+    <section class="ch" data-i="5">
+      <p class="eyebrow"><span class="idx">06 / 09</span> Zupčanički niz</p>
+      <h2 class="title">Od sporog prema brzom</h2>
+      <p class="body">Svaki sljedeći kotač vrti se brže od prethodnog. Središnji kotač napravi jedan krug na sat i nosi minutnu kazaljku. Četvrti se okrene jednom u minuti i nosi sekundnu. Prijenosni omjeri pretvaraju sporo odmatanje opruge u precizno brojanje.</p>
+      <dl class="spec"><div><dt>Središnji kotač</dt><dd>1 okr./h</dd></div><div><dt>Četvrti kotač</dt><dd>1 okr./min</dd></div></dl>
+    </section>
+    <section class="ch" data-i="6">
+      <p class="eyebrow"><span class="idx">07 / 09</span> Kotva i balans</p>
+      <h2 class="title">Srce koje kuca</h2>
+      <p class="body">Balans se njiše naprijed i natrag četiri puta u sekundi, a spiralna opruga ga vraća u sredinu. Pri svakom zamahu kotva propusti pola zuba kotvinog kotača. Tako se energija opruge troši u jednakim obrocima.</p>
+      <dl class="spec"><div><dt>Njihanje</dt><dd>4 Hz</dd></div><div><dt>Kotvin kotač</dt><dd>15 zubaca</dd></div></dl>
+    </section>
+    <section class="ch" data-i="7">
+      <p class="eyebrow"><span class="idx">08 / 09</span> Rastavljeni prikaz</p>
+      <h2 class="title">Svi slojevi odjednom</h2>
+      <p class="body">Ovako bi izgledao sat kad bi ga urar rastavio sloj po sloj: staklo, kazaljke, brojčanik, ploča, zupčanici, balans, mostovi i stražnji poklopac. Svaki dio ima točno jedno mjesto.</p>
+      <dl class="spec"><div><dt>Slojeva</dt><dd>11</dd></div><div><dt>Debljina sata</dt><dd>11 mm</dd></div></dl>
+    </section>
+    <section class="ch" data-i="8">
+      <p class="eyebrow"><span class="idx">09 / 09</span> Ponovno sklopljen</p>
+      <h2 class="title">Vrijeme koje vidiš je stvarno</h2>
+      <p class="body">Kazaljke pokazuju sat na tvom uređaju. Vrati se na bilo koji dio preko trake na dnu ili povuci sat mišem i razgledaj ga sa svih strana.</p>
+      <dl class="spec"><div><dt>Tvoje vrijeme</dt><dd id="clock2">--:--</dd></div><div><dt>Otkucaja danas</dt><dd id="beats">0</dd></div></dl>
+    </section>
+  </main>
+
+  <nav class="rail" aria-label="Dijelovi sata">
+    <div class="rail-head">
+      <span class="hint-desk">Kotačić miša okreće sat · Povuci za razgledavanje · Strelice za korake</span>
+      <span class="hint-touch">Povuci prstom za sljedeći dio</span>
+      <span id="pct">0 %</span>
+    </div>
+    <div class="track">
+      <div class="fill" id="fill"></div>
+      <ol class="ticks" id="ticks"></ol>
+    </div>
+  </nav>
+</div>
+
+<div id="tags" aria-hidden="true"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  "use strict";
+  var loader = document.getElementById("loader");
+  var loaderMsg = document.getElementById("loader-msg");
+  function fail(msg) {
+    loader.classList.add("error");
+    loaderMsg.textContent = msg;
+  }
+  window.addEventListener("error", function () {
+    if (!loader.classList.contains("gone")) fail("Sat se nije uspio složiti zbog greške u pregledniku. Osvježi stranicu ili probaj u Chromeu.");
+  });
+  if (typeof THREE === "undefined") {
+    fail("3D biblioteka se nije učitala. Provjeri internetsku vezu i osvježi stranicu.");
+    return;
+  }
+  var renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+  } catch (e) {
+    fail("Tvoj preglednik ne podržava WebGL pa se 3D sat ne može prikazati. Pokušaj u novijem Chromeu, Firefoxu ili Safariju.");
+    return;
+  }
+
+  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var stage = document.getElementById("stage");
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setClearColor(0x000000, 0);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  stage.appendChild(renderer.domElement);
+
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+
+  /* ---------- studio environment (softboxes, like a Blender HDRI) ---------- */
+  (function buildEnv() {
+    var pm = new THREE.PMREMGenerator(renderer);
+    var sc = new THREE.Scene();
+    sc.add(new THREE.Mesh(new THREE.BoxGeometry(12, 12, 12), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.16, 0.21, 0.18), side: THREE.BackSide })));
+    function panel(w, h, intensity, x, y, z, tint) {
+      var c = new THREE.Color(tint || 0xffffff).multiplyScalar(intensity);
+      var m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide }));
+      m.position.set(x, y, z); m.lookAt(0, 0, 0); sc.add(m);
+    }
+    panel(6, 5, 5, 0, 5.8, 1.5);
+    panel(1.3, 7, 9, -5.8, 0.6, 1.8);
+    panel(1.3, 7, 4.5, 5.8, 0.4, -1.2, 0xdfe8ff);
+    panel(5, 2.2, 1.6, 0, -0.8, 5.8);
+    panel(3.5, 3.5, 2.4, 0, 1.2, -5.8, 0xfff1dc);
+    panel(11, 11, 0.45, 0, -5.9, 0, 0x6f8c78);
+    scene.environment = pm.fromScene(sc, 0.035).texture;
+    pm.dispose();
+  })();
+
+  var key = new THREE.DirectionalLight(0xffffff, 1.1); key.position.set(3, 4, 5); scene.add(key);
+  var rim = new THREE.DirectionalLight(0xdfe6ff, 0.7); rim.position.set(-4, 2, -4); scene.add(rim);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.12));
+
+  /* ---------- procedural textures ---------- */
+  function canvasTex(w, h, draw, srgb) {
+    var c = document.createElement("canvas"); c.width = w; c.height = h;
+    draw(c.getContext("2d"), w, h);
+    var t = new THREE.CanvasTexture(c);
+    if (srgb) t.encoding = THREE.sRGBEncoding;
+    t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    return t;
+  }
+  // perlage: overlapping circular graining on the main plate
+  var perlage = canvasTex(512, 512, function (g, w) {
+    g.fillStyle = "#a9a9a9"; g.fillRect(0, 0, w, w);
+    var step = 30;
+    for (var row = -1; row < w / step + 2; row++) {
+      for (var col = -1; col < w / step + 2; col++) {
+        var x = col * step + (row % 2 ? step / 2 : 0), y = row * step * 0.9;
+        var gr = g.createRadialGradient(x, y, 1, x, y, 21);
+        gr.addColorStop(0, "#f2f2f2"); gr.addColorStop(0.55, "#bdbdbd"); gr.addColorStop(0.95, "#8d8d8d"); gr.addColorStop(1, "rgba(141,141,141,0)");
+        g.fillStyle = gr; g.beginPath(); g.arc(x, y, 21, 0, Math.PI * 2); g.fill();
+      }
+    }
+  });
+  perlage.wrapS = perlage.wrapT = THREE.RepeatWrapping; perlage.repeat.set(3, 3);
+  // Geneva stripes on the bridges
+  var geneva = canvasTex(512, 512, function (g, w) {
+    var n = 8, sw = w / n;
+    for (var i = 0; i < n; i++) {
+      var gr = g.createLinearGradient(i * sw, 0, (i + 1) * sw, 0);
+      gr.addColorStop(0, "#9a9a9a"); gr.addColorStop(0.5, "#f4f4f4"); gr.addColorStop(1, "#9a9a9a");
+      g.fillStyle = gr; g.fillRect(i * sw, 0, sw, w);
+    }
+  });
+  geneva.wrapS = geneva.wrapT = THREE.RepeatWrapping; geneva.center.set(0.5, 0.5); geneva.rotation = 0.6; geneva.repeat.set(1.2, 1.2);
+
+  // sunray dial
+  function drawDial(g, w) {
+    var c = w / 2;
+    var bg = g.createRadialGradient(c, c * 0.8, 20, c, c, c);
+    bg.addColorStop(0, "#3e5871"); bg.addColorStop(0.7, "#2a3e52"); bg.addColorStop(1, "#1a2836");
+    g.fillStyle = bg; g.fillRect(0, 0, w, w);
+    g.save(); g.translate(c, c);
+    for (var i = 0; i < 900; i++) {
+      var a = (i / 900) * Math.PI * 2;
+      var s = Math.abs(Math.sin(a * 2 + 0.6));
+      g.strokeStyle = "rgba(255,255,255," + (0.012 + 0.05 * s * Math.random()).toFixed(3) + ")";
+      g.lineWidth = 1.2;
+      g.beginPath(); g.moveTo(0, 0); g.lineTo(Math.cos(a) * c, Math.sin(a) * c); g.stroke();
+    }
+    for (var m = 0; m < 60; m++) {
+      var ang = (m / 60) * Math.PI * 2;
+      var five = m % 5 === 0;
+      g.save(); g.rotate(ang);
+      g.fillStyle = five ? "rgba(240,242,245,0.95)" : "rgba(240,242,245,0.6)";
+      g.fillRect(five ? -2.5 : -1.2, -c * 0.955, five ? 5 : 2.4, five ? 26 : 16);
+      g.restore();
+    }
+    g.fillStyle = "rgba(240,242,245,0.92)";
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.font = "400 36px Michroma, Arial, sans-serif";
+    g.fillText("H-28", 0, -c * 0.36);
+    g.font = "400 13px Michroma, Arial, sans-serif";
+    g.fillStyle = "rgba(216,180,106,0.95)";
+    g.fillText("RUČNO NAVIJANJE", 0, c * 0.34);
+    g.fillStyle = "rgba(240,242,245,0.55)";
+    g.font = "400 11px Michroma, Arial, sans-serif";
+    g.fillText("17 RUBINA", 0, c * 0.42);
+    g.restore();
+  }
+  var dialCanvas = document.createElement("canvas"); dialCanvas.width = dialCanvas.height = 1024;
+  drawDial(dialCanvas.getContext("2d"), 1024);
+  var dialTex = new THREE.CanvasTexture(dialCanvas);
+  dialTex.encoding = THREE.sRGBEncoding; dialTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () { drawDial(dialCanvas.getContext("2d"), 1024); dialTex.needsUpdate = true; });
+  }
+  var shadowTex = canvasTex(256, 256, function (g, w) {
+    var gr = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
+    gr.addColorStop(0, "rgba(6,10,8,0.7)"); gr.addColorStop(0.45, "rgba(6,10,8,0.25)"); gr.addColorStop(1, "rgba(6,10,8,0)");
+    g.fillStyle = gr; g.fillRect(0, 0, w, w);
+  });
+
+  /* ---------- materials ---------- */
+  var M = {
+    case: new THREE.MeshStandardMaterial({ color: 0xd9dce0, metalness: 1, roughness: 0.24 }),
+    polished: new THREE.MeshStandardMaterial({ color: 0xeef0f3, metalness: 1, roughness: 0.08 }),
+    plate: new THREE.MeshStandardMaterial({ color: 0xd4d7dc, metalness: 1, roughness: 0.62, map: perlage, roughnessMap: perlage }),
+    bridge: new THREE.MeshStandardMaterial({ color: 0xdadde2, metalness: 1, roughness: 0.42, map: geneva, roughnessMap: geneva }),
+    brass: new THREE.MeshStandardMaterial({ color: 0xdcb46a, metalness: 1, roughness: 0.27 }),
+    gilt: new THREE.MeshStandardMaterial({ color: 0xe7c47d, metalness: 1, roughness: 0.16 }),
+    steelDark: new THREE.MeshStandardMaterial({ color: 0x9aa1aa, metalness: 1, roughness: 0.35 }),
+    blued: new THREE.MeshStandardMaterial({ color: 0x2f56d6, metalness: 0.85, roughness: 0.22 }),
+    ruby: new THREE.MeshPhysicalMaterial({ color: 0xc0122f, metalness: 0, roughness: 0.04, clearcoat: 1, clearcoatRoughness: 0.02, emissive: 0x3a0008 }),
+    glass: new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0, transparent: true, opacity: 0.16, clearcoat: 1, envMapIntensity: 2.2, depthWrite: false }),
+    dial: new THREE.MeshStandardMaterial({ map: dialTex, metalness: 0.55, roughness: 0.38 }),
+    spring: new THREE.MeshStandardMaterial({ color: 0xb9c0c9, metalness: 1, roughness: 0.3 })
+  };
+
+  /* ---------- geometry helpers ---------- */
+  function lathe(profile, seg) {
+    var g = new THREE.LatheGeometry(profile.map(function (p) { return new THREE.Vector2(p[0], p[1]); }), seg || 128);
+    g.rotateX(Math.PI / 2);
+    return g;
+  }
+  function extrude(shape, depth, bevel) {
+    var g = new THREE.ExtrudeGeometry(shape, {
+      depth: depth, bevelEnabled: bevel !== false, bevelThickness: 0.004, bevelSize: 0.003, bevelSegments: 2, curveSegments: 36
+    });
+    g.translate(0, 0, -depth / 2);
+    return g;
+  }
+  function gearShape(o) {
+    var r = o.r, teeth = o.teeth, depth = o.depth || 0.02, hole = o.hole == null ? 0.012 : o.hole;
+    var spokes = o.spokes || 0, rimW = o.rim || 0.03, type = o.type || "std";
+    var s = new THREE.Shape(), rr = r - depth, step = Math.PI * 2 / teeth, first = true;
+    for (var i = 0; i < teeth; i++) {
+      var a = i * step, pts;
+      if (type === "std") pts = [[rr, a], [r, a + step * 0.2], [r, a + step * 0.42], [rr, a + step * 0.62]];
+      else if (type === "club") pts = [[rr, a], [r, a + step * 0.08], [r * 0.985, a + step * 0.24], [rr, a + step * 0.62]];
+      else pts = [[rr, a], [r, a + step * 0.86], [rr, a + step * 0.9]];
+      for (var j = 0; j < pts.length; j++) {
+        var x = Math.cos(pts[j][1]) * pts[j][0], y = Math.sin(pts[j][1]) * pts[j][0];
+        if (first) { s.moveTo(x, y); first = false; } else s.lineTo(x, y);
+      }
+    }
+    s.closePath();
+    if (hole > 0) { var h = new THREE.Path(); h.absarc(0, 0, hole, 0, Math.PI * 2, true); s.holes.push(h); }
+    if (spokes > 0) {
+      var ro = rr - rimW, ri = Math.max(hole + 0.03, r * 0.24), gap = 0.016;
+      if (ro > ri + 0.02) {
+        for (var k = 0; k < spokes; k++) {
+          var a0 = k * Math.PI * 2 / spokes, a1 = (k + 1) * Math.PI * 2 / spokes;
+          var go = gap / ro, gi = gap / ri, p = new THREE.Path();
+          p.moveTo(Math.cos(a0 + go) * ro, Math.sin(a0 + go) * ro);
+          p.absarc(0, 0, ro, a0 + go, a1 - go, false);
+          p.lineTo(Math.cos(a1 - gi) * ri, Math.sin(a1 - gi) * ri);
+          p.absarc(0, 0, ri, a1 - gi, a0 + gi, true);
+          p.closePath(); s.holes.push(p);
+        }
+      }
+    }
+    return s;
+  }
+  function capsule(x1, y1, x2, y2, w) {
+    var s = new THREE.Shape(), a = Math.atan2(y2 - y1, x2 - x1);
+    s.absarc(x1, y1, w, a + Math.PI / 2, a + Math.PI * 1.5, false);
+    s.absarc(x2, y2, w, a - Math.PI / 2, a + Math.PI / 2, false);
+    s.closePath();
+    return s;
+  }
+  function roundRect(w, h, r) {
+    var s = new THREE.Shape(), x = -w / 2, y = -h / 2;
+    s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.quadraticCurveTo(x + w, y, x + w, y + r);
+    s.lineTo(x + w, y + h - r); s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    s.lineTo(x + r, y + h); s.quadraticCurveTo(x, y + h, x, y + h - r);
+    s.lineTo(x, y + r); s.quadraticCurveTo(x, y, x + r, y);
+    return s;
+  }
+  class Spiral extends THREE.Curve {
+    constructor(r0, r1, turns, z0, z1) { super(); this.r0 = r0; this.r1 = r1; this.turns = turns; this.z0 = z0; this.z1 = z1; }
+    getPoint(t, target) {
+      var v = target || new THREE.Vector3(), a = t * this.turns * Math.PI * 2, r = this.r0 + (this.r1 - this.r0) * t;
+      return v.set(Math.cos(a) * r, Math.sin(a) * r, this.z0 + (this.z1 - this.z0) * t);
+    }
+  }
+  function mesh(geo, mat, x, y, z) { var m = new THREE.Mesh(geo, mat); m.position.set(x || 0, y || 0, z || 0); return m; }
+  function cyl(r, h, mat, x, y, z, seg) { var g = new THREE.CylinderGeometry(r, r, h, seg || 32); g.rotateX(Math.PI / 2); return mesh(g, mat, x, y, z); }
+  function screw(x, y, z) {
+    var g = new THREE.Group(); g.position.set(x, y, z);
+    g.add(cyl(0.028, 0.014, M.blued, 0, 0, 0, 24));
+    var slot = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.008, 0.01), new THREE.MeshStandardMaterial({ color: 0x0d1530, metalness: 0.6, roughness: 0.5 }));
+    slot.position.z = -0.006; slot.rotation.z = Math.random() * Math.PI; g.add(slot);
+    return g;
+  }
+  function jewel(x, y, z) {
+    var g = new THREE.Group(); g.position.set(x, y, z);
+    g.add(cyl(0.034, 0.008, M.gilt, 0, 0, 0, 28));
+    g.add(cyl(0.022, 0.012, M.ruby, 0, 0, -0.003, 24));
+    return g;
+  }
+
+  /* ---------- the watch ---------- */
+  var watch = new THREE.Group(); scene.add(watch);
+  var parts = [];
+  function part(obj, offZ, offX) { watch.add(obj); parts.push({ o: obj, base: obj.position.clone(), off: new THREE.Vector3(offX || 0, 0, offZ) }); return obj; }
+  function group(x, y, z) { var g = new THREE.Group(); g.position.set(x || 0, y || 0, z || 0); return g; }
+  var anchors = {};
+
+  // case middle with lugs
+  var gCase = group();
+  gCase.add(new THREE.Mesh(lathe([[0.86, 0.17], [0.97, 0.168], [1.02, 0.12], [1.03, 0], [1.02, -0.12], [0.97, -0.168], [0.86, -0.17], [0.86, 0.17]]), M.case));
+  var lugGeo = extrude(roundRect(0.17, 0.46, 0.06), 0.15);
+  [[-0.6, 0.98], [0.6, 0.98], [-0.6, -0.98], [0.6, -0.98]].forEach(function (p) {
+    var l = mesh(lugGeo, M.case, p[0], p[1], -0.01); gCase.add(l);
+    var bar = cyl(0.018, 0.02, M.polished, p[0] + (p[0] > 0 ? 0.087 : -0.087), p[1] + (p[1] > 0 ? 0.12 : -0.12), -0.01, 16);
+    bar.rotation.y = Math.PI / 2; gCase.add(bar);
+  });
+  part(gCase, 0);
+
+  // crown
+  var gCrown = group(0, 0, 0);
+  var stem = new THREE.CylinderGeometry(0.036, 0.036, 0.1, 20); stem.rotateZ(Math.PI / 2);
+  gCrown.add(mesh(stem, M.polished, 1.06, 0, 0));
+  var crownGeo = new THREE.CylinderGeometry(0.125, 0.125, 0.15, 48); crownGeo.rotateZ(Math.PI / 2);
+  var crown = mesh(crownGeo, M.case, 1.17, 0, 0); gCrown.add(crown);
+  var knurlGeo = new THREE.BoxGeometry(0.13, 0.018, 0.018);
+  for (var kn = 0; kn < 28; kn++) {
+    var ka = kn / 28 * Math.PI * 2, k = mesh(knurlGeo, M.case, 1.17, Math.cos(ka) * 0.126, Math.sin(ka) * 0.126);
+    k.rotation.x = ka; gCrown.add(k);
+  }
+  var cap = new THREE.CylinderGeometry(0.09, 0.11, 0.012, 40); cap.rotateZ(Math.PI / 2);
+  gCrown.add(mesh(cap, M.polished, 1.251, 0, 0));
+  anchors.crown = new THREE.Object3D(); anchors.crown.position.set(1.26, 0.13, 0); gCrown.add(anchors.crown);
+  part(gCrown, 0, 0.5);
+
+  // bezel + crystal
+  var gBezel = group();
+  gBezel.add(new THREE.Mesh(lathe([[0.84, 0.165], [0.985, 0.165], [0.99, 0.2], [0.94, 0.245], [0.86, 0.25], [0.84, 0.235], [0.84, 0.165]]), M.polished));
+  var crystal = cyl(0.855, 0.022, M.glass, 0, 0, 0.232, 96); crystal.renderOrder = 10; gBezel.add(crystal);
+  part(gBezel, 0.95);
+
+  // dial + indices
+  var gDial = group();
+  gDial.add(mesh(new THREE.CircleGeometry(0.86, 128), M.dial, 0, 0, 0.12));
+  gDial.add(cyl(0.86, 0.02, M.steelDark, 0, 0, 0.108, 96));
+  var idxGeo = new THREE.BoxGeometry(0.034, 0.13, 0.024);
+  for (var ii = 0; ii < 12; ii++) {
+    var a = ii / 12 * Math.PI * 2;
+    var put = function (dx) {
+      var m = mesh(idxGeo, M.polished, Math.sin(a) * 0.66 + Math.cos(a) * dx, Math.cos(a) * 0.66 - Math.sin(a) * dx, 0.133);
+      m.rotation.z = -a; gDial.add(m);
+    };
+    if (ii === 0) { put(-0.028); put(0.028); } else put(0);
+  }
+  anchors.dial = new THREE.Object3D(); anchors.dial.position.set(0.0, 0.0, 0.17); gDial.add(anchors.dial);
+  part(gDial, 0.38);
+
+  // hands
+  function leaf(len, w, tail) {
+    var s = new THREE.Shape();
+    s.moveTo(0, -tail); s.quadraticCurveTo(-w, len * 0.3, 0, len); s.quadraticCurveTo(w, len * 0.3, 0, -tail);
+    return s;
+  }
+  var hourHand = group(0, 0, 0.145); hourHand.add(mesh(extrude(leaf(0.44, 0.06, 0.07), 0.008), M.polished)); part(hourHand, 0.56);
+  var minHand = group(0, 0, 0.158); minHand.add(mesh(extrude(leaf(0.66, 0.045, 0.08), 0.007), M.polished)); part(minHand, 0.66);
+  var secHand = group(0, 0, 0.17);
+  var sh = new THREE.Shape(); sh.moveTo(-0.006, -0.16); sh.lineTo(0.006, -0.16); sh.lineTo(0.004, 0.74); sh.lineTo(-0.004, 0.74); sh.closePath();
+  secHand.add(mesh(extrude(sh, 0.005, false), M.gilt));
+  secHand.add(cyl(0.03, 0.006, M.gilt, 0, -0.13, 0));
+  secHand.add(cyl(0.024, 0.016, M.polished, 0, 0, 0.004));
+  part(secHand, 0.76);
+
+  // main plate
+  var gPlate = group();
+  var plateShape = new THREE.Shape(); plateShape.absarc(0, 0, 0.84, 0, Math.PI * 2, false);
+  gPlate.add(mesh(extrude(plateShape, 0.04), M.plate, 0, 0, -0.005));
+  part(gPlate, -0.12);
+
+  // wheels
+  var Z = -0.06;
+  function wheel(opts, x, y, z, mat, thick, pinion) {
+    var g = group(x, y, z);
+    g.add(mesh(extrude(gearShape(opts), thick || 0.016), mat || M.brass));
+    if (pinion) {
+      g.add(mesh(extrude(gearShape({ r: pinion, teeth: 8, depth: 0.012, hole: 0 }), 0.03), M.steelDark, 0, 0, 0.018));
+    }
+    g.add(cyl(0.012, 0.09, M.polished, 0, 0, 0, 16));
+    return g;
+  }
+  // barrel (open drum with visible mainspring)
+  var barrel = group(-0.34, 0.3, Z);
+  barrel.add(mesh(extrude(gearShape({ r: 0.31, teeth: 72, depth: 0.018, hole: 0.265 }), 0.05), M.steelDark));
+  barrel.add(cyl(0.27, 0.008, M.steelDark, 0, 0, 0.022, 64));
+  barrel.add(new THREE.Mesh(new THREE.TubeGeometry(new Spiral(0.05, 0.255, 8, -0.006, -0.006), 900, 0.0035, 5, false), M.spring));
+  barrel.add(cyl(0.045, 0.06, M.polished, 0, 0, 0, 24));
+  anchors.barrel = new THREE.Object3D(); anchors.barrel.position.set(0.06, 0.2, -0.04); barrel.add(anchors.barrel);
+  part(barrel, -0.3);
+
+  var center = wheel({ r: 0.215, teeth: 64, depth: 0.014, spokes: 5 }, 0, 0, Z + 0.012, M.brass, 0.016, 0.04); part(center, -0.27);
+  var third = wheel({ r: 0.17, teeth: 60, depth: 0.012, spokes: 4 }, 0.31, 0.27, Z - 0.012, M.brass, 0.014, 0.03); part(third, -0.28);
+  var fourth = wheel({ r: 0.165, teeth: 70, depth: 0.011, spokes: 4 }, 0.36, -0.17, Z + 0.004, M.brass, 0.014, 0.03); part(fourth, -0.29);
+  anchors.train = new THREE.Object3D(); anchors.train.position.set(0.1, 0.12, -0.03); fourth.add(anchors.train);
+  var escape = wheel({ r: 0.105, teeth: 15, depth: 0.03, spokes: 4, rim: 0.016, type: "club" }, 0.13, -0.46, Z - 0.006, M.polished, 0.012, 0.022);
+  part(escape, -0.31);
+
+  // pallet fork
+  var pallet = group(-0.03, -0.58, Z - 0.006);
+  pallet.add(mesh(extrude(capsule(0, 0, -0.2, 0.08, 0.016), 0.012), M.polished));
+  pallet.add(mesh(extrude(capsule(0.06, 0.13, 0.17, 0.0, 0.014), 0.012), M.polished));
+  pallet.add(mesh(extrude(capsule(0, 0, 0.06, 0.13, 0.014), 0.012), M.polished));
+  var stoneGeo = new THREE.BoxGeometry(0.018, 0.045, 0.014);
+  var st1 = mesh(stoneGeo, M.ruby, 0.06, 0.155, 0.003); st1.rotation.z = 0.4; pallet.add(st1);
+  var st2 = mesh(stoneGeo, M.ruby, 0.185, 0.02, 0.003); st2.rotation.z = 1.2; pallet.add(st2);
+  pallet.add(cyl(0.01, 0.07, M.polished, 0, 0, 0, 12));
+  part(pallet, -0.35);
+
+  // balance wheel with hairspring
+  var balance = group(-0.42, -0.4, Z - 0.03);
+  balance.add(new THREE.Mesh(new THREE.TorusGeometry(0.225, 0.017, 16, 96), M.gilt));
+  var spoke = new THREE.BoxGeometry(0.45, 0.022, 0.012);
+  balance.add(mesh(spoke, M.gilt));
+  var spoke2 = mesh(spoke, M.gilt); spoke2.rotation.z = Math.PI / 2; balance.add(spoke2);
+  for (var bs = 0; bs < 10; bs++) {
+    var ba = bs / 10 * Math.PI * 2;
+    var bscrew = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.03, 12), M.gilt);
+    bscrew.position.set(Math.cos(ba) * 0.248, Math.sin(ba) * 0.248, 0); bscrew.rotation.z = ba + Math.PI / 2;
+    balance.add(bscrew);
+  }
+  balance.add(cyl(0.04, 0.012, M.polished, 0, 0, 0.012, 24));
+  balance.add(cyl(0.008, 0.09, M.polished, 0, 0, 0, 12));
+  var hair = new THREE.Mesh(new THREE.TubeGeometry(new Spiral(0.03, 0.13, 11, -0.02, -0.02), 700, 0.0022, 5, false), M.blued);
+  balance.add(hair);
+  anchors.balance = new THREE.Object3D(); anchors.balance.position.set(0, 0.24, -0.02); balance.add(anchors.balance);
+  part(balance, -0.47);
+
+  // bridges, jewels and blued screws
+  var gBridges = group(0, 0, -0.112);
+  var bridgeT = 0.024;
+  gBridges.add(mesh(extrude(capsule(-0.34, 0.3, -0.62, 0.5, 0.11), bridgeT), M.bridge));
+  gBridges.add(mesh(extrude(capsule(-0.34, 0.3, 0.05, 0.62, 0.075), bridgeT), M.bridge));
+  gBridges.add(mesh(extrude(capsule(0.0, 0.0, 0.31, 0.27, 0.06), bridgeT), M.bridge));
+  gBridges.add(mesh(extrude(capsule(0.31, 0.27, 0.36, -0.17, 0.06), bridgeT), M.bridge));
+  gBridges.add(mesh(extrude(capsule(0.36, -0.17, 0.66, -0.36, 0.06), bridgeT), M.bridge));
+  gBridges.add(mesh(extrude(capsule(0.13, -0.46, 0.34, -0.62, 0.05), bridgeT), M.bridge));
+  gBridges.add(mesh(extrude(capsule(-0.42, -0.4, -0.7, -0.15, 0.065), bridgeT), M.bridge));
+  [[0, 0], [0.31, 0.27], [0.36, -0.17], [0.13, -0.46], [-0.42, -0.4], [-0.03, -0.58]].forEach(function (p) { gBridges.add(jewel(p[0], p[1], -0.014)); });
+  [[-0.62, 0.5], [0.05, 0.62], [0.66, -0.36], [0.34, -0.62], [-0.7, -0.15], [0.15, 0.13]].forEach(function (p) { gBridges.add(screw(p[0], p[1], -0.016)); });
+  part(gBridges, -0.63);
+
+  // ratchet wheel on top of barrel bridge
+  var ratchet = group(-0.34, 0.3, -0.142);
+  ratchet.add(mesh(extrude(gearShape({ r: 0.17, teeth: 40, depth: 0.018, hole: 0.03, type: "saw" }), 0.016), M.polished));
+  ratchet.add(screw(0, 0, -0.012));
+  part(ratchet, -0.79);
+
+  // caseback with sapphire window
+  var gBack = group();
+  gBack.add(new THREE.Mesh(lathe([[0.72, -0.168], [0.99, -0.168], [0.975, -0.205], [0.9, -0.235], [0.72, -0.235], [0.72, -0.168]]), M.case));
+  var backGlass = cyl(0.725, 0.015, M.glass, 0, 0, -0.215, 96); backGlass.renderOrder = 10; gBack.add(backGlass);
+  part(gBack, -1.0);
+
+  // soft contact shadow on the "floor"
+  var shadow = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 3.2), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false }));
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = -1.55; scene.add(shadow);
+
+  /* ---------- chapters (keyframes) ---------- */
+  var F = {
+    none: new THREE.Vector3(0, 0, 0),
+    dial: new THREE.Vector3(0, 0.02, 0.15),
+    crown: new THREE.Vector3(0.85, 0, 0),
+    back: new THREE.Vector3(0, 0, -0.1),
+    barrel: new THREE.Vector3(-0.3, 0.28, -0.25),
+    train: new THREE.Vector3(0.25, 0.05, -0.25),
+    balance: new THREE.Vector3(-0.3, -0.38, -0.3),
+    explode: new THREE.Vector3(0, 0, -0.05)
+  };
+  var PI = Math.PI;
+  var KEYS = [
+    { ry: 0.42, rx: 0.16, ex: 0, d: 4.7, f: "none", tag: null, label: "Uvod" },
+    { ry: 0.1, rx: 0.06, ex: 0, d: 2.9, f: "dial", tag: "dial", label: "Brojčanik", tagText: "Kazaljke" },
+    { ry: -1.2, rx: 0.14, ex: 0, d: 3.5, f: "crown", tag: "crown", label: "Kućište", tagText: "Krunica" },
+    { ry: -PI + 0.32, rx: 0.12, ex: 0, d: 4.1, f: "back", tag: null, label: "Straga" },
+    { ry: -PI + 0.08, rx: 0.12, ex: 0.42, d: 3.2, f: "barrel", tag: "barrel", label: "Opruga", tagText: "Glavna opruga" },
+    { ry: -PI - 0.14, rx: 0.08, ex: 0.42, d: 3.2, f: "train", tag: "train", label: "Zupčanici", tagText: "Četvrti kotač" },
+    { ry: -PI - 0.42, rx: 0.16, ex: 0.42, d: 3.0, f: "balance", tag: "balance", label: "Balans", tagText: "Balans" },
+    { ry: -PI - 1.12, rx: 0.32, ex: 1, d: 6.0, f: "explode", tag: null, label: "Rastavljeno" },
+    { ry: -2 * PI + 0.42, rx: 0.16, ex: 0, d: 4.7, f: "none", tag: null, label: "Kraj" }
+  ];
+  var N = KEYS.length;
+
+  /* ---------- UI wiring ---------- */
+  var chapters = Array.prototype.slice.call(document.querySelectorAll(".ch"));
+  var ticks = document.getElementById("ticks");
+  var fill = document.getElementById("fill");
+  var pct = document.getElementById("pct");
+  var tickBtns = KEYS.map(function (k, i) {
+    var li = document.createElement("li"); li.style.left = (i / (N - 1) * 100) + "%";
+    var b = document.createElement("button"); b.type = "button"; b.id = "tick-" + i;
+    b.setAttribute("aria-label", "Idi na dio " + (i + 1) + ": " + k.label);
+    var s = document.createElement("span"); s.textContent = k.label; b.appendChild(s);
+    b.addEventListener("click", function () { goTo(i); });
+    li.appendChild(b); ticks.appendChild(li); return b;
+  });
+  var tagLayer = document.getElementById("tags");
+  var tagEls = KEYS.map(function (k) {
+    if (!k.tag) return null;
+    var el = document.createElement("div"); el.className = "tag";
+    el.innerHTML = "<i></i><em></em><span></span>";
+    el.querySelector("span").textContent = k.tagText;
+    tagLayer.appendChild(el); return el;
+  });
+
+  var target = 0, prog = 0, active = 0, snapTimer = 0;
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function goTo(i) { target = clamp(i, 0, N - 1) / (N - 1); }
+  function scheduleSnap() {
+    clearTimeout(snapTimer);
+    snapTimer = setTimeout(function () { target = Math.round(target * (N - 1)) / (N - 1); }, 240);
+  }
+  function setActive(i) {
+    if (i === active) return;
+    active = i;
+    chapters.forEach(function (c, ci) {
+      c.classList.toggle("on", ci === i);
+      c.classList.toggle("before", ci < i);
+      c.setAttribute("aria-hidden", ci === i ? "false" : "true");
+    });
+    tickBtns.forEach(function (b, bi) { b.classList.toggle("on", bi === i); b.classList.toggle("done", bi < i); b.setAttribute("aria-current", bi === i ? "step" : "false"); });
+  }
+  chapters.forEach(function (c, ci) { c.setAttribute("aria-hidden", ci === 0 ? "false" : "true"); });
+  tickBtns[0].classList.add("on");
+
+  window.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    var d = (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY);
+    if (e.deltaMode === 1) d *= 32;
+    target = clamp(target + d / 2600, 0, 1);
+    scheduleSnap();
+  }, { passive: false });
+
+  window.addEventListener("keydown", function (e) {
+    var cur = Math.round(target * (N - 1));
+    if (["ArrowRight", "ArrowDown", "PageDown", " "].indexOf(e.key) > -1) { goTo(cur + 1); e.preventDefault(); }
+    else if (["ArrowLeft", "ArrowUp", "PageUp"].indexOf(e.key) > -1) { goTo(cur - 1); e.preventDefault(); }
+    else if (e.key === "Home") goTo(0);
+    else if (e.key === "End") goTo(N - 1);
+  });
+
+  // mouse: drag to orbit. touch: swipe to move through chapters.
+  var drag = null, dragYaw = 0, dragPitch = 0, parX = 0, parY = 0, parTX = 0, parTY = 0;
+  stage.addEventListener("pointerdown", function (e) {
+    drag = { x: e.clientX, y: e.clientY, type: e.pointerType, yaw: dragYaw, pitch: dragPitch, t: target };
+    stage.classList.add("dragging");
+    try { stage.setPointerCapture(e.pointerId); } catch (err) { /* capture not available */ }
+  });
+  stage.addEventListener("pointermove", function (e) {
+    parTX = (e.clientX / window.innerWidth - 0.5); parTY = (e.clientY / window.innerHeight - 0.5);
+    if (!drag) return;
+    var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (drag.type === "mouse") {
+      dragYaw = drag.yaw + dx * 0.008;
+      dragPitch = clamp(drag.pitch + dy * 0.006, -0.9, 0.9);
+    } else {
+      var d = Math.abs(dx) > Math.abs(dy) ? -dx : -dy;
+      target = clamp(drag.t + d / (Math.min(window.innerWidth, window.innerHeight) * 1.1), 0, 1);
+    }
+  });
+  function endDrag() { if (drag && drag.type !== "mouse") scheduleSnap(); drag = null; stage.classList.remove("dragging"); }
+  stage.addEventListener("pointerup", endDrag);
+  stage.addEventListener("pointercancel", endDrag);
+
+  /* ---------- layout ---------- */
+  var wide = true;
+  function resize() {
+    var w = window.innerWidth, h = window.innerHeight;
+    wide = w > 860;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    if (wide) camera.setViewOffset(w, h, -w * 0.15, 0, w, h);
+    else camera.setViewOffset(w, h, 0, h * 0.2, w, h);
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  /* ---------- animation ---------- */
+  var clockEl = document.getElementById("clock"), clock2 = document.getElementById("clock2"), beatsEl = document.getElementById("beats");
+  function two(n) { return (n < 10 ? "0" : "") + n; }
+  var tmpV = new THREE.Vector3(), focusL = new THREE.Vector3(), focusW = new THREE.Vector3(), camT = new THREE.Vector3();
+  var t0 = performance.now(), last = t0, lastSecShown = -1, firstFrame = true;
+  function smooth(x) { return x * x * (3 - 2 * x); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  function frame(now) {
+    var dt = Math.min(0.05, (now - last) / 1000); last = now;
+    var t = (now - t0) / 1000;
+
+    prog += (target - prog) * (1 - Math.exp(-dt * (reduceMotion ? 12 : 4.5)));
+    if (Math.abs(target - prog) < 1e-4) prog = target;
+    var s = prog * (N - 1), i0 = Math.min(N - 2, Math.floor(s)), fr = smooth(clamp(s - i0, 0, 1));
+    var A = KEYS[i0], B = KEYS[i0 + 1];
+    var ry = lerp(A.ry, B.ry, fr), rx = lerp(A.rx, B.rx, fr), ex = lerp(A.ex, B.ex, fr), dist = lerp(A.d, B.d, fr);
+    focusL.copy(F[A.f]).lerp(F[B.f], fr);
+    setActive(Math.round(s));
+
+    if (!drag) { dragYaw *= Math.exp(-dt * 2.2); dragPitch *= Math.exp(-dt * 2.2); }
+    parX += (parTX - parX) * (1 - Math.exp(-dt * 3)); parY += (parTY - parY) * (1 - Math.exp(-dt * 3));
+    var idle = reduceMotion ? 0 : Math.sin(t * 0.5) * 0.03;
+    watch.rotation.set(rx + dragPitch + parY * 0.12, ry + dragYaw + parX * 0.2 + idle, 0);
+    watch.position.y = reduceMotion ? 0 : Math.sin(t * 0.8) * 0.02;
+
+    for (var p = 0; p < parts.length; p++) {
+      var pt = parts[p];
+      pt.o.position.set(pt.base.x + pt.off.x * ex, pt.base.y + pt.off.y * ex, pt.base.z + pt.off.z * ex);
+    }
+
+    // real time on the hands
+    var d = new Date();
+    var sec = d.getSeconds() + Math.floor(d.getMilliseconds() / 125) / 8;
+    var min = d.getMinutes() + sec / 60, hr = (d.getHours() % 12) + min / 60;
+    hourHand.rotation.z = -hr / 12 * PI * 2;
+    minHand.rotation.z = -min / 60 * PI * 2;
+    secHand.rotation.z = -sec / 60 * PI * 2;
+
+    // movement
+    var daySec = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds() + d.getMilliseconds() / 1000;
+    center.rotation.z = -min / 60 * PI * 2;
+    third.rotation.z = daySec / 450 * PI * 2;
+    fourth.rotation.z = -sec / 60 * PI * 2;
+    barrel.rotation.z = daySec / 25200 * PI * 2;
+    var beats = Math.floor(daySec * 8), bf = daySec * 8 - beats;
+    escape.rotation.z = (beats + Math.min(1, bf * 7)) / 30 * PI * 2;
+    var hz = reduceMotion ? 0.5 : 4;
+    var osc = Math.sin(t * PI * 2 * hz);
+    balance.rotation.z = osc * 2.3;
+    hair.scale.setScalar(1 + osc * 0.035);
+    pallet.rotation.z = Math.tanh(osc * 5) * 0.09;
+
+    shadow.scale.set(1 + ex * 0.5, 1, 1);
+    shadow.material.opacity = 0.75 - ex * 0.25;
+
+    // camera framing
+    watch.updateMatrixWorld(true);
+    focusW.copy(focusL); watch.localToWorld(focusW);
+    var mob = wide ? Math.max(1, 1.8 / camera.aspect) : 1.55 + Math.max(0, 0.6 - camera.aspect) * 1.2;
+    camT.copy(focusW).multiplyScalar(0.9);
+    camera.position.set(camT.x, camT.y + 0.32, camT.z + dist * mob);
+    camera.lookAt(camT);
+
+    renderer.render(scene, camera);
+
+    // floating callouts
+    var w = window.innerWidth, h = window.innerHeight;
+    for (var k = 0; k < N; k++) {
+      var el = tagEls[k]; if (!el) continue;
+      var op = clamp(1 - Math.abs(s - k) * 2.4, 0, 1);
+      if (op <= 0) { if (el.style.opacity !== "0") el.style.opacity = "0"; continue; }
+      anchors[KEYS[k].tag].getWorldPosition(tmpV); tmpV.project(camera);
+      var x = (tmpV.x * 0.5 + 0.5) * w, y = (-tmpV.y * 0.5 + 0.5) * h;
+      el.style.opacity = op.toFixed(3);
+      el.style.transform = "translate(" + (x - 4.5).toFixed(1) + "px," + (y - 12).toFixed(1) + "px)";
+    }
+
+    fill.style.width = (prog * 100).toFixed(2) + "%";
+    var sNow = d.getSeconds();
+    if (sNow !== lastSecShown) {
+      lastSecShown = sNow;
+      clockEl.textContent = two(d.getHours()) + ":" + two(d.getMinutes()) + ":" + two(sNow);
+      clock2.textContent = two(d.getHours()) + ":" + two(d.getMinutes());
+      beatsEl.textContent = beats.toLocaleString("hr-HR");
+      pct.textContent = Math.round(prog * 100) + " %";
+    }
+
+    if (firstFrame) { firstFrame = false; loader.classList.add("gone"); }
+    requestAnimationFrame(frame);
+  }
+  try {
+    requestAnimationFrame(frame);
+  } catch (e) {
+    fail("Nešto je pošlo po zlu pri crtanju sata. Osvježi stranicu da pokušaš ponovno.");
+  }
+  renderer.domElement.addEventListener("webglcontextlost", function (e) {
+    e.preventDefault();
+    loader.classList.remove("gone");
+    fail("Grafička kartica je privremeno prekinula prikaz. Osvježi stranicu da se sat ponovno složi.");
+  });
+})();
+</script>
+
+</body>
+</html>
